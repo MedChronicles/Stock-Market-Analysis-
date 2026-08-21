@@ -1,0 +1,26 @@
+symbol,name,currentPrice,volume,changePercent
+AAPL,Apple Inc.,175.50,125000000,2.35
+MSFT,Microsoft Corporation,380.25,85000000,1.75
+GOOGL,Alphabet Inc.,142.80,95000000,-0.85
+AMZN,Amazon.com Inc.,178.90,110000000,3.20
+TSLA,Tesla Inc.,245.60,180000000,-2.10
+META,Meta Platforms Inc.,485.30,75000000,4.50
+NVDA,NVIDIA Corporation,875.40,150000000,5.80
+JPM,JPMorgan Chase & Co.,195.75,60000000,0.95
+V,Visa Inc.,275.20,45000000,1.40
+WMT,Walmart Inc.,165.80,70000000,-0.30
+DIS,Walt Disney Company,95.40,90000000,2.80
+NFLX,Netflix Inc.,625.90,55000000,-1.50
+BA,Boeing Company,185.30,65000000,3.10
+INTC,Intel Corporation,42.75,120000000,-3.25
+AMD,Advanced Micro Devices,165.80,140000000,6.40
+ORCL,Oracle Corporation,125.60,58000000,1.85
+IBM,IBM Corporation,185.90,45000000,0.75
+CSCO,Cisco Systems Inc.,52.30,80000000,-0.45
+CRM,Salesforce Inc.,285.70,62000000,2.95
+ADBE,Adobe Inc.,575.20,48000000,1.60
+PYPL,PayPal Holdings Inc.,62.40,95000000,-2.80
+NKE,Nike Inc.,97.50,88000000,1.25
+MCD,McDonald's Corporation,295.80,52000000,0.85
+KO,Coca-Cola Company,61.20,75000000,0.45
+PEP,PepsiCo Inc.,172.90,68000000,1.10

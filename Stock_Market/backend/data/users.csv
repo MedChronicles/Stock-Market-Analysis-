@@ -1,0 +1,14 @@
+userId,username,email,balance,isAdmin
+1,john_doe,john@example.com,50000.00,0
+2,jane_smith,jane@example.com,75000.00,0
+3,mike_wilson,mike@example.com,100000.00,0
+4,sarah_jones,sarah@example.com,60000.00,0
+5,david_brown,david@example.com,85000.00,0
+6,emma_davis,emma@example.com,120000.00,0
+7,chris_miller,chris@example.com,95000.00,0
+8,lisa_garcia,lisa@example.com,110000.00,0
+9,tom_martinez,tom@example.com,80000.00,0
+10,anna_rodriguez,anna@example.com,150000.00,0
+11,james_lopez,james@example.com,70000.00,0
+12,olivia_lee,olivia@example.com,90000.00,0
+13,admin,admin@trading.com,1000000.00,1
