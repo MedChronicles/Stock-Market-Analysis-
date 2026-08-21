@@ -1,217 +1,143 @@
-#  Stock Trading & Order Book Simulator
+# Stock Market Order Book Simulator
 
-A pure **C-based command-line trading simulator** that recreates the basic working of a real stock exchange order book. It uses **Min-Heap and Max-Heap priority queues** to manage buy and sell orders and processes market data from a CSV file.
+A command-line stock trading simulator written in pure C. It models a simplified limit order book using a **min-heap for sell orders** and a **max-heap for buy orders**, so every trade is matched the way a real exchange would: cheapest seller first when you buy, highest bidder first when you sell.
 
-The main idea is simple: users can register, log in, buy and sell stocks, and watch their orders get matched against the available market orders. The project focuses on showing how data structures such as heaps can be used to build a practical trading system from scratch.
+Market data is loaded from a CSV file at startup, users can register/log in, and trades are matched live against the in-memory order book — no database, no external dependencies, just standard C libraries.
 
-> Every order match, price change, and VWAP calculation is handled through the data structures implemented in C, without using a database or external libraries.
+## Contents
 
----
+- [What it does](#what-it-does)
+- [Features](#features)
+- [How matching works](#how-matching-works)
+- [Getting started](#getting-started)
+- [Using the simulator](#using-the-simulator)
+- [Market data format](#market-data-format)
+- [Project layout](#project-layout)
+- [Performance notes](#performance-notes)
+- [Ideas for extending it](#ideas-for-extending-it)
+- [License](#license)
 
-##  Table of Contents
+## What it does
 
-* [Overview](#-overview)
-* [Features](#-features)
-* [How Order Matching Works](#-how-order-matching-works)
-* [Tech Stack](#️-tech-stack)
-* [Project Structure](#-project-structure)
-* [Getting Started](#-getting-started)
-* [Usage Walkthrough](#-usage-walkthrough)
-* [Order Book CSV Format](#-order-book-csv-format)
-* [Complexity](#-complexity)
-* [Roadmap](#-roadmap)
-* [License](#-license)
+On launch, the program reads `order_book.csv` and builds a separate order book for each stock symbol it finds — around 100 real-world tickers (AAPL, TSLA, NVDA, MSFT, and so on) are included by default. Each book keeps:
 
----
+- a **min-heap** of outstanding sell orders (lowest price on top)
+- a **max-heap** of outstanding buy orders (highest price on top)
+- a running VWAP and a "live" price that shifts as liquidity gets consumed
 
-## Overview
+From there, a user can register an account, log in, and start buying or selling — the engine walks the relevant heap to fill the order, pulling from the best-priced level first and moving to the next level if there isn't enough quantity available.
 
-`stock_trading.c` reads an `order_book.csv` file containing market orders for around 100 real-world stock symbols. Users can create an account, log in, and trade stocks directly through the terminal.
+## Features
 
-Each stock has two separate heaps:
+- **Accounts** — register/login flow with credentials persisted to a flat binary file (`users.dat`); an admin account is seeded automatically on first run.
+- **Market buy/sell** — orders fill against the live order book, walking price levels until the requested quantity is met or the book runs dry.
+- **Iceberg orders** — split a large position into smaller "visible" slices that fill in waves, rather than exposing the full size at once.
+- **Pending limit orders** — place an order that sits inactive until the market reaches your chosen price.
+- **Live price movement** — the market price nudges up or down as price levels get exhausted, simulating price impact.
+- **VWAP** — volume-weighted average price is computed per symbol from historical matched trades in the CSV.
+- **Portfolio tracking** — quantity and running average cost basis per holding, plus total account value (cash + positions).
+- **Trade history & realized P&L** — every fill is logged with symbol, price, quantity, and profit/loss.
+- **Admin tools** — inspect and adjust user balances, reset passwords, and view order-book/VWAP state per symbol.
 
-* A **Min-Heap** for SELL orders, where the lowest selling price gets priority.
-* A **Max-Heap** for BUY orders, where the highest buying price gets priority.
+## How matching works
 
-When someone buys a stock, the program starts with the cheapest available sell order. When someone sells, it starts with the highest available buy order. This allows the simulator to follow the basic logic used by a real limit order book.
+1. `order_book.csv` is parsed once at startup; each row is pushed onto the correct heap for its symbol.
+2. A reference price and VWAP are derived per symbol from the loaded data.
+3. **Buying** pops from the sell min-heap — you get the cheapest available offer first, then the next-cheapest, and so on until your order is filled.
+4. **Selling** pops from the buy max-heap — same idea, but from the highest bid down.
+5. **Iceberg orders** repeat this matching logic slice-by-slice across multiple "waves," so only part of the order is visible to the book at any moment.
+6. **Pending orders** are held aside and only get matched once the live price crosses the user's limit.
 
----
+Because a heap gives O(log n) insertion and O(log n) removal-of-best, the engine never has to scan the whole book to find the next order to fill.
 
-##  Features
+## Getting started
 
-| Feature                  | Description                                                                                                                              |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| **User Authentication**  | Users can register and log in. Account information is stored in `users.dat`. An admin account is created automatically on the first run. |
-| **Order Book Engine**    | Uses a Min-Heap for sell orders and a Max-Heap for buy orders for each stock.                                                            |
-| **Market Buy / Sell**    | Matches buy and sell requests against available orders until the requested quantity is filled or the order book runs out.                |
-| **Iceberg Orders**       | Allows large orders to be divided into smaller visible portions instead of showing the entire quantity at once.                          |
-| **Pending Limit Orders** | Users can place orders that wait until the stock reaches their chosen price.                                                             |
-| **Live Price Movement**  | The current price changes slightly when available price levels are exhausted.                                                            |
-| **VWAP Calculation**     | Calculates the Volume-Weighted Average Price using matched trades from the CSV data.                                                     |
-| **Portfolio Management** | Keeps track of the stocks owned by each user, quantities, and average buying prices.                                                     |
-| **Trade History & P&L**  | Stores previous trades and calculates realized profit or loss.                                                                           |
-| **Admin Panel**          | Admins can manage users, change balances and passwords, inspect order books, and view VWAP information.                                  |
-| **Real Stock Symbols**   | Includes around 100 real symbols such as AAPL, TSLA, NVDA, MSFT, and others.                                                             |
-
----
-
-##  How Order Matching Works
-
-1. When the program starts, `order_book.csv` is loaded and each order is placed into the appropriate heap for its stock.
-2. VWAP and a reference price are calculated for each stock using matched orders.
-3. When a user buys, the program checks the **sell Min-Heap** and starts with the lowest available selling price.
-4. If the user still needs more shares, the program continues to the next available price level.
-5. When a user sells, the program does the opposite by checking the **buy Max-Heap**, starting with the highest available buying price.
-6. Iceberg orders divide a large order into smaller visible portions and process them one wave at a time.
-7. Pending orders remain in the system until the market price reaches the user's specified limit.
-
-This makes the project a practical example of how **heaps and priority queues can be applied to stock-market order matching**.
-
----
-
-##  Tech Stack
-
-* **C (C99)** — Main programming language
-* Standard C libraries:
-
-  * `stdio.h`
-  * `stdlib.h`
-  * `string.h`
-  * `math.h`
-  * `ctype.h`
-* **Flat-file storage**
-
-  * `users.dat` for user accounts
-  * `order_book.csv` for market data
-
-The project does not use a database or external libraries.
-
----
-
-##  Project Structure
-
-```text
-Stock-Market-Analysis-/
-├── stock_trading.c     # Main program containing the complete trading engine
-├── order_book.csv      # Market data containing around 4,000 orders
-├── LICENSE
-└── README.md
-```
-
----
-
-##  Getting Started
-
-### Prerequisites
-
-You only need a C compiler such as GCC, Clang, or MSVC.
-
-### Build
+You just need a C compiler — GCC, Clang, or MSVC all work.
 
 ```bash
+git clone https://github.com/MedChronicles/Stock-Market-Analysis-.git
+cd Stock-Market-Analysis-
+
+# build
 gcc -o stock_trading stock_trading.c -lm
-```
 
-### Run
-
-```bash
+# run (order_book.csv must be in the same folder)
 ./stock_trading
 ```
 
-Make sure `order_book.csv` is present in the same directory as the executable. The program needs this file to load the initial market data.
+On the very first run, the program creates a default admin account:
 
-### Default Admin Login
-
-On the first run, an admin account is automatically created:
-
-```text
+```
 username: admin
 password: admin@123
 ```
 
-Regular users can create their own accounts through the registration option.
+Everyone else registers their own account from the main menu and starts with a simulated cash balance to trade with.
 
----
+## Using the simulator
 
-##  Usage Walkthrough
+**Main menu:** register, log in, or exit.
 
-### Main Menu
+**Once logged in, a trader can:**
 
-Users can:
+| Option | What it does |
+|---|---|
+| Browse & trade | Pick a symbol from the loaded market and place a buy or sell |
+| Iceberg order | Trade a large position in smaller visible waves |
+| Pending orders | View or cancel resting limit orders |
+| Iceberg orders | View or cancel active iceberg positions |
+| Portfolio | See current holdings, average cost, and unrealized P&L |
+| Trade history | Review past fills and realized P&L |
+| Order book | Inspect live bid/ask depth for a symbol |
 
-1. Register
-2. Login
-3. Exit
+**The admin account** additionally gets a management view: adjust or reset user balances/passwords, remove accounts, and inspect order-book/VWAP state across symbols.
 
-### Trader Dashboard
+## Market data format
 
-After logging in, a regular user can:
+`order_book.csv` supplies the orders each book is seeded with. It follows this shape:
 
-1. **Browse Companies & Trade** — Choose a stock from the available list.
-2. **Buy / Sell** — Enter a stock symbol and quantity and trade against the current order book.
-3. **Place Iceberg Order** — Split a large order into smaller visible portions.
-4. **My Portfolio** — Check current holdings and average purchase price.
-5. **Trade History** — View previous trades and realized P&L.
-6. **Pending Orders** — View or cancel pending limit orders.
-7. **Iceberg Orders** — View or cancel active iceberg orders.
-8. **View Order Book** — Inspect the current buy and sell orders for a stock.
+| Column | Meaning |
+|---|---|
+| Order ID | Unique identifier for the order |
+| Symbol | Ticker, e.g. `AAPL` |
+| Queue position | Tie-breaker for orders at the same price |
+| Order type | `BUY` or `SELL` |
+| Quantity | Shares in the order |
+| Price | Limit price for the order |
+| Status / execution fields | Used to flag matched trades and their fill price |
+| Timestamp | When the order was placed |
 
-### Admin Panel
+Rows flagged as already matched (with a valid execution price) feed into the VWAP calculation for that symbol. You can swap in your own CSV as long as the column layout is preserved.
 
-The admin can manage users, reset passwords, change balances, delete accounts, and inspect order-book and VWAP information for different stocks.
+## Project layout
 
----
+```
+Stock-Market-Analysis-/
+├── stock_trading.c   # entire trading engine — heaps, matching, accounts, UI
+├── order_book.csv    # seed market data (~100 symbols, thousands of orders)
+├── LICENSE
+└── README.md
+```
 
-##  Order Book CSV Format
+## Performance notes
 
-The `order_book.csv` file contains the market data used by the simulator.
+| Operation | Cost |
+|---|---|
+| Insert an order | O(log n) |
+| Pop the best-priced order | O(log n) |
+| Look up a symbol's book | O(s) — s = number of symbols |
+| Load the full CSV | O(n log n) |
 
-| Column           | Description                                             |
-| ---------------- | ------------------------------------------------------- |
-| `Order_ID`       | Unique ID assigned to an order                          |
-| `Stock_Symbol`   | Stock ticker such as AAPL or TSLA                       |
-| `Queue_Position` | Used to decide priority when orders have the same price |
-| `Order_Type`     | BUY or SELL                                             |
-| `Quantity`       | Number of shares in the order                           |
-| `Price($)`       | Limit price of the order                                |
-| `Check_Block`    | Reference to the opposing side                          |
-| `Timestamp`      | Time associated with the order                          |
+Using heaps instead of, say, a sorted array or linear scan is what keeps order matching fast even as the book grows — the engine only ever needs the current best price, not a full sort.
 
-Rows marked as `MATCHED` with a valid execution price are also used when calculating VWAP for each stock.
+## Ideas for extending it
 
-Users can replace the existing market data with their own CSV file as long as the same structure is maintained.
+- Persist the order book state back to disk between sessions
+- Stop-loss / take-profit order types
+- Export trade history to its own CSV
+- Accept the market-data file path as a command-line argument
+- Concurrent order matching (would need real synchronization around the heaps)
 
----
+## License
 
-##  Complexity
-
-| Operation                        | Time Complexity                        |
-| -------------------------------- | -------------------------------------- |
-| Push order onto heap             | O(log n)                               |
-| Remove best order from heap      | O(log n)                               |
-| Find/create a stock's order book | O(s), where s is the number of symbols |
-| Load all orders from CSV         | O(n log n)                             |
-
-The heap-based design allows the program to quickly find the best available buy or sell order without scanning the entire order book every time.
-
----
-
-## Roadmap
-
-Some possible improvements for the future include:
-
-* [ ] Save the updated order book after each session
-* [ ] Add multi-threading for concurrent order matching
-* [ ] Add stop-loss and take-profit orders
-* [ ] Export trade history to CSV
-* [ ] Allow file paths to be passed through command-line arguments
-
----
-
-##  License
-
-Licensed under the MIT License.
-
----
-
-**A from-scratch implementation of a stock-market order book that demonstrates how heaps and priority queues can be used to build a simple trading engine in C.**
+MIT — see [`LICENSE`](./LICENSE) for details.
